@@ -7,7 +7,7 @@ LABEL app.name="DB-ConnectionTest"
 LABEL app.version=$APP_VERSION
 LABEL app.git_sha=$GIT_SHA
 
-COPY target/app.war ./webapps/ROOT.war
+COPY target/app-${APP_VERSION}.war ./webapps/ROOT.war
 
 EXPOSE 8080
 
