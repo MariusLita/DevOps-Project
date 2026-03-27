@@ -45,7 +45,8 @@ jobs:
       - name: Deploy to ${{ steps.detect.outputs.new_slot }} slot
         run: |
           NEW_SLOT=${{ steps.detect.outputs.new_slot }}
-
+          VERSION=${{ inputs.app_version }}
+          
           echo "Deploying version $VERSION to $NEW_SLOT"
 
           sed "s/{{SLOT}}/$NEW_SLOT/g; s#{{IMAGE}}#$IMAGE#g; s/{{VERSION}}/$VERSION/g" app-deployment.yaml | kubectl apply -n $NAMESPACE -f -
