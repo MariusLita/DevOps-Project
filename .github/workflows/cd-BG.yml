@@ -22,7 +22,7 @@ jobs:
       - name: Configure kubectl
         run: |
           mkdir -p ~/.kube
-          echo "${{ secrets.KUBECONFIG }}" | base64 -d > ~/.kube/config
+          echo "${{ secrets.KUBECONFIG }}" > ~/.kube/config
           kubectl get nodes 
 
       # ── Check which slot is currently live ──────────────
@@ -46,7 +46,7 @@ jobs:
         run: |
           NEW_SLOT=${{ steps.detect.outputs.new_slot }}
           VERSION=${{ inputs.app_version }}
-          
+
           echo "Deploying version $VERSION to $NEW_SLOT"
 
           sed "s/{{SLOT}}/$NEW_SLOT/g; s#{{IMAGE}}#$IMAGE#g; s/{{VERSION}}/$VERSION/g" app-deployment.yaml | kubectl apply -n $NAMESPACE -f -
