@@ -5,8 +5,8 @@
     <title>Test DB Connection</title>
 </head>
 <body>
-    <h2>Test Database Connection V.4.0</h2>
-    <form action="TestConnectionServlet" method="GET">
+    <h2>Test Database Connection V.5.0</h2>
+    <form action="${pageContext.request.contextPath}/TestConnectionServlet" method="GET">
         <button type="submit">Test Connection</button>
     </form>
 </body>
