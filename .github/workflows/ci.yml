@@ -27,7 +27,7 @@ jobs:
       - name: Set APP_VERSION
         id: set_version
         run: |
-          VERSION=$(mvn -f apps/pom.xmlhelp:evaluate -Dexpression=project.version -q -DforceStdout)
+          VERSION=$(mvn -f apps/pom.xml help:evaluate -Dexpression=project.version -q -DforceStdout)
           echo "APP_VERSION=$VERSION" >> $GITHUB_ENV
           echo "APP_VERSION=$VERSION" >> $GITHUB_OUTPUT
 
