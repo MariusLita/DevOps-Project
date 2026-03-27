@@ -12,7 +12,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     outputs:
-      app_version: ${{ steps.set_version.outputs.APP_VERISON }}
+      app_version: ${{ steps.set_version.outputs.APP_VERSION }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v5
@@ -86,8 +86,9 @@ jobs:
           push: true
           build-args: |
             APP_VERSION=${{ needs.build.outputs.app_version }}
-            GIT_SHA=${{ needs.build.outputs.git_sha }}
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/runnerdb:${{ needs.build.outputs.app_version }}
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/runnerdb:${{ needs.build.outputs.app_version }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/runnerdb:latest
 
       - name: Verify Docker Image
         uses: aquasecurity/trivy-action@0.35.0
