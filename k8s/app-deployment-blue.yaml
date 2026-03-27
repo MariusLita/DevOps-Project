@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: runnerdb-blue
+  namespace: java-app
+  labels:
+    app: runnerdb
+    slot: blue
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: runnerdb
+      slot: blue
+  template:
+    metadata:
+      labels:
+        app: runnerdb
+        slot: blue
+    spec:
+      containers:
+        - name: runnerdb
+          image: docker.io/mariuslita/runnerdb:2.0   # pipeline overwrites this tag
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: app-config       # DB_HOST, DB_PORT, DB_NAME, DB_USER
+          env:
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: mysql-password
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          startupProbe:
+            httpGet:
+              path: /
+              port: 8080
+            failureThreshold: 18         # up to 3 min to start (18 x 10s)
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 0
+            periodSeconds: 15
+            failureThreshold: 3

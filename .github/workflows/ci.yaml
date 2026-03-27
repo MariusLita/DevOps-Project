@@ -1,0 +1,102 @@
+name: CI
+on:
+  push:
+    branches: ["*"]
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    output:
+      app_version: ${{ steps.set_version.outputs.APP_VERISON }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v5
+
+      - name: Set UP JDK 11
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '11'
+          cache: 'maven'
+
+      - name: Set APP_VERSION
+        id: set_version
+        run: |
+          VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+          echo "APP_VERSION=$VERSION" >> $GITHUB_ENV
+          echo "APP_VERSION=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: build
+        working-directory: apps
+        run: |
+          echo "Start building the artifact"
+          mvn clean package
+          echo "Build successfully"
+
+       - name: SonarQube Scan
+         uses: sonarsource/sonarqube-scan-action@v2
+         env: 
+           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+           SONAR_HOST_URL: ${{ secrets.SONAR_URL }} 
+         width:
+           args: >
+             -Dsonar.projectKey=Application-1
+
+      - name: SonarQube Quality Gate Check
+        uses: sonarsource/sonarqube-quality-gate-action@v1
+        env:
+            SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+            SONAR_HOST_URL: ${{ secrets.SONAR_URL }}
+
+      - name: Archive artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Application-V-${{ env.APP_VERSION}}.war
+          path: apps/target/*.war
+  
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Download artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: Application-V-${{ needs.build.outputs.app_version}}.war
+          path: apps/target
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./apps
+          file: ./apps/Dockerfile
+          push: true
+          build-args: |
+            APP_VERSION=${{ needs.build.outputs.app_version }}
+            GIT_SHA=${{ needs.build.outputs.git_sha }}
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/runnerdb:${{ needs.build.outputs.app_version }}
+
+      - name: Verify Docker Image
+        uses: aquasecurity/trivy-action@0.35.0
+        with:
+          image-ref: ${{ secrets.DOCKERHUB_USERNAME }}/runnerdb:${{ needs.build.outputs.app_version }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+      
+      - name: Upload Trivy Scan Results
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: 'trivy-results.sarif'

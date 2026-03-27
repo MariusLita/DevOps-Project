@@ -1,0 +1,45 @@
+# --- Service always pointing to blue pods ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: runnerdb-blue
+  namespace: java-app
+spec:
+  selector:
+    app: runnerdb
+    slot: blue
+  ports:
+    - port: 80
+      targetPort: 8080
+  type: ClusterIP
+---
+# --- Service always pointing to green pods ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: runnerdb-green
+  namespace: java-app
+spec:
+  selector:
+    app: runnerdb
+    slot: green
+  ports:
+    - port: 80
+      targetPort: 8080
+  type: ClusterIP
+---
+# --- Active service — Ingress always points here.
+#     Pipeline patches the selector to flip between blue/green ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: runnerdb-active
+  namespace: java-app
+spec:
+  selector:
+    app: runnerdb
+    slot: blue              # pipeline patches this to green on cutover
+  ports:
+    - port: 80
+      targetPort: 8080
+  type: ClusterIP
