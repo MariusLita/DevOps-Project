@@ -49,7 +49,7 @@ jobs:
 
           echo "Deploying version $VERSION to $NEW_SLOT"
 
-          sed "s/{{SLOT}}/$NEW_SLOT/g; s#{{IMAGE}}#$IMAGE#g; s/{{VERSION}}/$VERSION/g" app-deployment.yaml | kubectl apply -n $NAMESPACE -f -
+          sed "s/{{SLOT}}/$NEW_SLOT/g; s#{{IMAGE}}#$IMAGE#g; s/{{VERSION}}/$VERSION/g" k8s/app-deployment.yaml | kubectl apply -n $NAMESPACE -f -
 
       # ─- Wait for new pods to be fully ready ──────────────────
       - name: Wait for rollout
