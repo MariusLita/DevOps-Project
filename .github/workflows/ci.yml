@@ -11,7 +11,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    output:
+    outputs:
       app_version: ${{ steps.set_version.outputs.APP_VERISON }}
     steps:
       - name: Checkout Code
@@ -37,15 +37,15 @@ jobs:
           echo "Start building the artifact"
           mvn clean package
           echo "Build successfully"
-
-       - name: SonarQube Scan
-         uses: sonarsource/sonarqube-scan-action@v2
-         env: 
-           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-           SONAR_HOST_URL: ${{ secrets.SONAR_URL }} 
-         width:
-           args: >
-             -Dsonar.projectKey=Application-1
+      
+      - name: SonarQube Scan
+        uses: sonarsource/sonarqube-scan-action@v2
+        env: 
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_URL }} 
+        with:
+          args: >
+            -Dsonar.projectKey=Application-1
 
       - name: SonarQube Quality Gate Check
         uses: sonarsource/sonarqube-quality-gate-action@v1
