@@ -1,0 +1,111 @@
+name: CD — Blue/Green Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_version:
+        description: "Image version to deploy"
+        required: true
+
+env:
+  NAMESPACE: java-app
+  IMAGE: ${{ secrets.REPO }}/runnerdb
+
+jobs:
+  blue-green:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > ~/.kube/config
+          kubectl get nodes 
+
+      # ── Check which slot is currently live ──────────────
+      - name: Detect active slot
+        id: detect
+        run: |
+          ACTIVE=$(kubectl get service runnerdb-active \
+            -n $NAMESPACE \
+            -o jsonpath='{.spec.selector.slot}')
+          echo "Active slot is: $ACTIVE"
+          if [ "$ACTIVE" = "blue" ]; then
+            echo "new_slot=green" >> $GITHUB_OUTPUT
+            echo "old_slot=blue"  >> $GITHUB_OUTPUT
+          else
+            echo "new_slot=blue"  >> $GITHUB_OUTPUT
+            echo "old_slot=green" >> $GITHUB_OUTPUT
+          fi
+
+      # ── Deploy new version into the idle slot ────────────────
+      - name: Deploy to ${{ steps.detect.outputs.new_slot }} slot
+        run: |
+          NEW_SLOT=${{ steps.detect.outputs.new_slot }}
+
+          echo "Deploying version $VERSION to $NEW_SLOT"
+
+          sed "s/{{SLOT}}/$NEW_SLOT/g; s#{{IMAGE}}#$IMAGE#g; s/{{VERSION}}/$VERSION/g" app-deployment.yaml | kubectl apply -n $NAMESPACE -f -
+
+      # ─- Wait for new pods to be fully ready ──────────────────
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment/runnerdb-${{ steps.detect.outputs.new_slot }} \
+            -n $NAMESPACE \
+            --timeout=5m
+
+      # ── Smoke test via port-forward ────
+      - name: Smoke test new slot
+        run: |
+          NEW_SLOT=${{ steps.detect.outputs.new_slot }}
+
+          kubectl port-forward \
+            service/runnerdb-${NEW_SLOT} 8888:80 \
+            -n $NAMESPACE &
+          PF_PID=$!
+          sleep 5
+
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+            http://localhost:8888/)
+
+          kill $PF_PID
+
+          echo "Health check returned: $HTTP_CODE"
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "Smoke test failed — aborting. Old slot still live."
+            exit 1
+          fi
+          echo "Smoke test passed."
+
+      # ── Switch live traffic to new slot
+      - name: Switch active service to ${{ steps.detect.outputs.new_slot }}
+        run: |
+          kubectl patch service runnerdb-active \
+            -n $NAMESPACE \
+            --type=json \
+            -p='[{
+              "op": "replace",
+              "path": "/spec/selector/slot",
+              "value": "${{ steps.detect.outputs.new_slot }}"
+            }]'
+          echo "Traffic now flowing to ${{ steps.detect.outputs.new_slot }}"
+
+      # ── Scale down old slot  ─
+      - name: Scale down ${{ steps.detect.outputs.old_slot }} slot
+        run: |
+          kubectl scale deployment runnerdb-${{ steps.detect.outputs.old_slot }} \
+            -n $NAMESPACE \
+            --replicas=1
+          echo "Old slot scaled to 1."
+
+      # ── Failure handling --
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "Pipeline failed. Active slot unchanged."
+          echo "Current live slot: ${{ steps.detect.outputs.old_slot }}"
+          echo "Failed slot: ${{ steps.detect.outputs.new_slot }}"
+          echo "To clean up: kubectl scale deployment runnerdb-${{ steps.detect.outputs.new_slot }} -n $NAMESPACE --replicas=0"
